@@ -1,0 +1,176 @@
+{
+    "collection": "AppointmentView",
+    "aggregate": [
+        {
+            "$match": {
+                "$and": [
+                    {
+                        "appointmentStatus": "Active"
+                    },
+                    {
+                        "DocStatus": {
+                            "$ne": [
+                                "OPDCancelled",
+                                "IPDCancelled"
+                            ]
+                        }
+                    },
+                    {
+                        "opdType": {
+                            "$ne": [
+                                "Followup-OPD"
+                                ]
+                        }
+                    },
+                    {
+                        "Hospital_clinic.Hospital City": {
+                            "$in": [
+                                "Dhaka",
+                                "Chittagong"
+                            ]
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            "$lookup": {
+                "from": "EnquiriesView",
+                "localField": "leadId",
+                "foreignField": "leadId",
+                "as": "CategoryList"
+            }
+        },
+        {
+            "$unwind": {
+                "path": "$CategoryList",
+                "preserveNullAndEmptyArrays": true
+            }
+        },
+        {
+            "$lookup": {
+                "from": "Leads",
+                "localField": "leadId",
+                "foreignField": "_id",
+                "as": "LeadsData"
+            }
+        },
+        {
+            "$unwind": {
+                "path": "$LeadsData",
+                "preserveNullAndEmptyArrays": true
+            }
+        },
+        {
+            "$match": {
+                "LeadsData.FirstName": {
+                    "$not": {
+                        "$regex": "test",
+                        "$options": "i"
+                    }
+                }
+            }
+        },
+        {
+            "$lookup": {
+                "from": "DoctorMasterView",
+                "localField": "DocAssigned",
+                "foreignField": "docObjectId",
+                "as": "DoctorsData"
+            }
+        },
+        {
+            "$unwind": {
+                "path": "$DoctorsData",
+                "preserveNullAndEmptyArrays": true
+            }
+        },
+        {
+            "$match": {
+                "DoctorsData.name": {
+                    "$not": {
+                        "$regex": "test",
+                        "$options": "i"
+                    }
+                }
+            }
+        },
+        {
+            "$lookup": {
+                "from": "BDList",
+                "localField": "BDAssigned",
+                "foreignField": "BDObjectId",
+                "as": "bd_details"
+            }
+        },
+        {
+            "$unwind": {
+                "path": "$bd_details",
+                "preserveNullAndEmptyArrays": true
+            }
+        },
+        {
+            "$project": {
+                "Appt_ID"               : "$_id",
+                "_id"                   : 0,
+                "Lead_ID"               : "$leadId",
+                "Appt_Date"             : "$AppointmentDate",
+                "Appt_Type"             : "$AppointmentType",
+                "Category"              : "$Disease",
+                "Disease"               : "$SurgeryType",
+                "Source"                : "$LeadsData.MarketingSource",
+                "Mobile_Num"            : "$LeadsData.Mobile",
+                "Doctor_Name"           : "$DoctorsData.name",
+                "Hospital/Clinic_Name"  : "$Hospital_clinic.Hospital Name",
+                "Patient_Name"          : "$LeadsData.FirstName",
+                "Package_Amount"        : "$TotalAmount",
+                "Advance_Amount"        : "$totalAdvancePayment",
+                "BD_Name"               : "$bd_details.BDName",
+                "City"                  : "$Hospital_clinic.Hospital City",
+                "Month": {
+                    "$month": {
+                        "$toDate": "$AppointmentDate"
+                    }
+                },
+                "Day": {
+                    "$dayOfMonth": {
+                        "$toDate": "$AppointmentDate"
+                    }
+                },
+                "Year": {
+                    "$year": {
+                        "$toDate": "$AppointmentDate"
+                    }
+                }
+            }
+        },
+        {
+            "$group": {
+                "_id": "$Appt_ID",
+                "data": {
+                    "$first": "$$ROOT"
+                }
+            }
+        },
+        {
+            "$replaceRoot": {
+                "newRoot": "$data"
+            }
+        },
+        {
+            "$group": {
+                "_id": {
+                    "Appt_Type": "$Appt_Type",
+                    "Year": "$Year",
+                    "Month": "$Month"
+                },
+                "Revenue": {
+                    "$sum": "$Package_Amount"
+                },
+                "count": {
+                    "$sum": 1
+                }
+            }
+        }
+    ]
+}
